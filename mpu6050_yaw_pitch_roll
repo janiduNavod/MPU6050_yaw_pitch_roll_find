@@ -1,0 +1,53 @@
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+Adafruit_MPU6050 mpu;
+
+float pitch = 0, roll = 0, yaw = 0;
+unsigned long lastTime = 0;
+
+void setup() {
+  Serial.begin(115200);
+  if (!mpu.begin()) {
+    Serial.println("MPU6050 not found");
+    while (1) delay(10);
+  }
+
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+
+  delay(100);
+  lastTime = millis();
+}
+
+void loop() {
+  sensors_event_t acc, gyro, temp;
+  mpu.getEvent(&acc, &gyro, &temp);
+
+  unsigned long now = millis();
+  float dt = (now - lastTime) / 1000.0;
+  lastTime = now;
+
+  // Accelerometer-based angle estimates (degrees)
+  float accPitch = atan2(acc.acceleration.y, acc.acceleration.z) * 180 / PI;
+  float accRoll  = atan2(-acc.acceleration.x, sqrt(acc.acceleration.y * acc.acceleration.y + acc.acceleration.z * acc.acceleration.z)) * 180 / PI;
+
+  // Complementary filter: combine gyro and accelerometer
+  float alpha = 0.98;
+  pitch = alpha * (pitch + gyro.gyro.x * dt * 180 / PI) + (1 - alpha) * accPitch;
+  roll  = alpha * (roll  + gyro.gyro.y * dt * 180 / PI) + (1 - alpha) * accRoll;
+  yaw   += gyro.gyro.z * dt * 180 / PI; // Yaw only from gyro → will drift
+
+  // Print
+  Serial.print("Pitch: ");
+  Serial.print(pitch);
+  Serial.print("°, Roll: ");
+  Serial.print(roll);
+  Serial.print("°, Yaw: ");
+  Serial.print(yaw);
+  Serial.println("°");
+
+  delay(10);
+}
